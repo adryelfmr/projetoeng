@@ -12,57 +12,81 @@ const worlds = components.get(OBC.Worlds);
 
 const world = worlds.create();
 world.scene = new OBC.SimpleScene(components);
-world.renderer = new OBC.SimpleRenderer(components, container);
+world.renderer = new OBCF.PostproductionRenderer(components, container);
 world.camera = new OBC.SimpleCamera(components);
 
 components.init();
-
+world.scene.three.background = null;
+world.scene.setup();
+world.scene.config.backgroundColor = new THREE.Color(0xff0000);
+world.scene.config.directionalLight.intensity = 10;
+world.scene.config.ambientLight.intensity = 10;
 world.camera.controls.setLookAt(12, 6, 8, 0, 0, -10);
 
-world.scene.setup();
-
 const grids = components.get(OBC.Grids);
-grids.create(world);
+const grid = grids.create(world);
+grid.config.color = new THREE.Color(0xffffff);
+grid.config.primarySize = 10;
+grid.config.secondarySize = 40;
+grid.config.visible = true;
+// // grids._defaultConfig.color.set(0xff0000);
+// console.log(grid);
 
 const fragments = components.get(OBC.FragmentsManager);
 const fragmentIfcLoader = components.get(OBC.IfcLoader);
 
+const { postproduction } = world.renderer;
+postproduction.enabled = true;
+postproduction.customEffects.excludedMeshes.push(grid.three);
+const ao = postproduction.n8ao.configuration;
 await fragmentIfcLoader.setup();
 
 const dimensions = components.get(OBCF.LengthMeasurement);
-
+let model;
 async function loadIfc() {
   const file = await fetch(
     "https://adryelfmr.github.io/ifcapi/projetomatheus.ifc"
   );
   const data = await file.arrayBuffer();
   const buffer = new Uint8Array(data);
-  const model = await fragmentIfcLoader.load(buffer);
+  model = await fragmentIfcLoader.load(buffer);
   model.name = "example";
 
   world.scene.three.add(model);
-  console.log(WEB.Properties);
+
   dimensions.world = world;
   dimensions.enabled = true;
   dimensions.snapDistance = 1;
 }
 
-// const dimensions = components.get(OBCF.LengthMeasurement);
-// dimensions.world = world;
-// dimensions.enabled = true;
-// dimensions.snapDistance = 1;
-container.ondblclick = () => {
-  console.log(dimensions);
-  dimensions.create();
-};
-window.onkeydown = (event) => {
-  if (event.code === "Delete" || event.code === "Backspace") {
-    dimensions.delete();
-  }
-};
-
 fragments.onFragmentsLoaded.add((model) => {
   console.log(model);
+});
+
+const highlighter = components.get(OBCF.Highlighter);
+highlighter.setup({ world });
+highlighter.zoomToSelection = true;
+
+const outliner = components.get(OBCF.Outliner);
+outliner.world = world;
+outliner.enabled = true;
+
+outliner.create(
+  "example",
+  new THREE.MeshBasicMaterial({
+    color: 0xbcf124,
+    transparent: true,
+    opacity: 0.5,
+  })
+);
+
+highlighter.events.select.onHighlight.add(function (data) {
+  outliner.clear("example");
+  outliner.add("example", data);
+});
+
+highlighter.events.select.onClear.add(function () {
+  outliner.clear("example");
 });
 
 function download(file) {
@@ -150,22 +174,3 @@ const button = BUI.Component.create(() => {
 });
 
 document.body.append(button);
-
-// const raycaster = new THREE.Raycaster();
-// const mouse = new THREE.Vector2();
-
-// function onMouseClick(event) {
-//   mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-//   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
-//   raycaster.setFromCamera(mouse, world.camera);
-//   const intersects = raycaster.intersectObjects(
-//     world.scene.three.children,
-//     true
-//   );
-//   if (intersects.length > 0) {
-//     console.log("Fragmento selecionado:", intersects[0].object);
-//   }
-// }
-
-// window.addEventListener("click", onMouseClick);
